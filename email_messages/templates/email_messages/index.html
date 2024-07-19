@@ -1,0 +1,182 @@
+{% load static %}
+<!DOCTYPE html>
+<!--suppress JSUnresolvedLibraryURL -->
+<html lang="">
+<head>
+    <title>Импорт сообщений</title>
+</head>
+<body>
+<h1>Импорт сообщений</h1>
+
+<div class="progress-bar">
+    <div class="progress"></div>
+    <span class="progress-text" id="remaining-messages"></span>
+</div>
+
+<div class="import-form">
+    <label for="email-service">Почтовый сервис:</label>
+    <select id="email-service">
+        <option value="yandex.ru">Yandex</option>
+        <option value="gmail.com">Gmail</option>
+        <option value="mail.ru">Mail.ru</option>
+    </select>
+
+    <label for="username">Логин:</label>
+    <input type="text" id="username" placeholder="Введите логин">
+
+    <label for="password">Пароль:</label>
+    <input type="password" id="password" placeholder="Введите пароль">
+
+    <button id="start-search-btn">Начать поиск</button>
+</div>
+
+<table id="email-table">
+    <thead>
+    <tr>
+        <th>Тема</th>
+        <th>Сообщение</th>
+        <th>Дата получения</th>
+        <th>Почтовый ящик</th>
+    </tr>
+    </thead>
+    <tbody></tbody>
+</table>
+
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script>
+    let total_messages = 0;
+
+    $('#start-search-btn').click(function() {
+        const data = {
+            emailService: $('#email-service').val(),
+            login: $('#username').val(),
+            password: $('#password').val()
+        };
+
+        // Подключение к WebSocket-каналу
+        const socket = new WebSocket('ws://' + window.location.host + '/ws/import/');
+
+        socket.onopen = function() {
+            socket.send(JSON.stringify(data));
+        };
+
+        socket.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+
+            if (data.total_messages) {
+                total_messages = data.total_messages;
+            }
+            const remaining = +(data.remaining_messages);
+            if (data.remaining_messages) {
+                updateProgressBar(remaining);
+            }
+            else if (data.emails) {
+                data.emails.forEach(function(email) {
+                    addEmailToTable(email);
+                });
+            }
+        };
+
+        function updateProgressBar(remaining) {
+            const total = total_messages;
+            const progress = Math.round((parseInt(total) - parseInt(remaining)) / parseInt(total) * 100) + "%";
+            $('.progress').css('width', progress);
+            $('#remaining-messages').text('Осталось скачать: ' + remaining + ' писем.');
+        }
+
+        function addEmailToTable(email) {
+            const row = $('<tr>');
+            const titleCell = $('<td>').css('max-width', '200px').css('overflow', 'hidden').css('text-overflow', 'ellipsis').attr('title', email.title);
+            titleCell.text(email.title.substring(0, 50) + '...');
+            row.append(titleCell);
+            const textCell = $('<td>').css('max-width', '200px').css('overflow', 'hidden').css('text-overflow', 'ellipsis').attr('title', email.text);
+            textCell.text(email.text.substring(0, 50) + '...');
+            row.append(textCell);
+            row.append($('<td>').text(email.received_at));
+            row.append($('<td>').text(email.email_service));
+
+            // Вставляем новую строку в начало таблицы
+            $('#email-table tbody').prepend(row);
+        }
+    });
+</script>
+</body>
+<style>
+    body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+    }
+
+    h1 {
+        text-align: center;
+        margin-top: 20px;
+    }
+
+    .import-form {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        margin-top: 30px;
+    }
+
+    .import-form label {
+        margin-top: 10px;
+    }
+
+    .import-form input, .import-form select {
+        margin-top: 5px;
+        padding: 5px;
+        width: 200px;
+    }
+
+    .import-form button {
+        margin-top: 20px;
+        padding: 10px 20px;
+        background-color: #4CAF50;
+        color: white;
+        border: none;
+        cursor: pointer;
+    }
+
+    .progress-bar {
+        width: 80%;
+        height: 20px;
+        background-color: #f1f1f1;
+        margin: 20px auto;
+        position: relative;
+    }
+
+    .progress {
+        background-color: green;
+        height: 100%;
+        width: 0;
+        transition: width 0.5s ease-in-out;
+    }
+
+    .progress-text {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        font-weight: bold;
+    }
+
+    #email-table {
+        width: 80%;
+        margin: 20px auto;
+        border-collapse: collapse;
+    }
+
+    #email-table th, #email-table td {
+        padding: 8px;
+        text-align: left;
+        border-bottom: 1px solid #ddd;
+    }
+
+    #email-table th {
+        background-color: #f2f2f2;
+    }
+
+</style>
+</html>
